@@ -113,6 +113,12 @@
             color: #111827;
             transition: all 0.2s;
         }
+        /* Mobile: Prevent iOS zoom on input focus */
+        @media (max-width: 768px) {
+            .input-field {
+                font-size: 16px;
+            }
+        }
         .dark .input-field {
             border-color: #4b5563;
             background-color: #111827;
@@ -317,8 +323,8 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Placeholder for sticky card -->
-        <div id="inputPlaceholder" class="input-placeholder mb-8"></div>
+        <!-- Placeholder for sticky card (height controlled by JS) -->
+        <div id="inputPlaceholder" class="input-placeholder"></div>
         
         <!-- Collapsible Input Section -->
         <div id="inputCard" class="card input-card mb-8 no-print">
@@ -380,13 +386,15 @@
                         <div class="field-label-row">
                             <span class="field-label">Loan Term</span>
                         </div>
-                        <select id="loanTerm" class="input-field">
-                            <option value="10">10 years</option>
-                            <option value="15">15 years</option>
-                            <option value="20">20 years</option>
-                            <option value="25">25 years</option>
-                            <option value="30" selected>30 years</option>
-                        </select>
+                        <div class="relative">
+                            <select id="loanTerm" class="input-field">
+                                <option value="10">10 years</option>
+                                <option value="15">15 years</option>
+                                <option value="20">20 years</option>
+                                <option value="25">25 years</option>
+                                <option value="30" selected>30 years</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- Points/Credits -->
@@ -538,7 +546,7 @@
         <!-- Scenario Selector for Chart & Schedule -->
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Detailed Analysis</h2>
-            <div id="detailScenarioToggle">
+            <div id="detailScenarioToggle" class="relative">
                 <select id="detailScenarioView" class="input-field text-sm py-1.5 w-auto">
                     <option value="base">Base Scenario</option>
                 </select>
@@ -627,13 +635,15 @@
                     <div class="field-label-row">
                         <span class="field-label">Loan Term</span>
                     </div>
-                    <select id="scnLoanTerm" class="input-field">
-                        <option value="10">10 years</option>
-                        <option value="15">15 years</option>
-                        <option value="20">20 years</option>
-                        <option value="25">25 years</option>
-                        <option value="30">30 years</option>
-                    </select>
+                    <div class="relative">
+                        <select id="scnLoanTerm" class="input-field">
+                            <option value="10">10 years</option>
+                            <option value="15">15 years</option>
+                            <option value="20">20 years</option>
+                            <option value="25">25 years</option>
+                            <option value="30">30 years</option>
+                        </select>
+                    </div>
                 </div>
                 <!-- Points/Credits with toggle -->
                 <div>
@@ -1992,40 +2002,62 @@
             });
             
             // Scroll handler for auto-collapse and sticky behavior
-            const STICKY_THRESHOLD = 100;
+            // Get collapsed header height for proper placeholder sizing
+            const getCollapsedHeight = () => {
+                const header = inputCard.querySelector('.flex.items-center.justify-between');
+                return header ? header.offsetHeight + 32 : 80; // 32px for padding
+            };
             
+            // Check if mobile
+            const isMobile = () => window.innerWidth < 768;
+
             window.addEventListener('scroll', () => {
                 const scrollY = window.scrollY;
                 const isSticky = inputCard.classList.contains('sticky');
                 
-                // When scrolled past threshold
-                if (scrollY > STICKY_THRESHOLD) {
+                // Calculate the bottom of the input card area
+                const inputCardBottom = inputCardOriginalTop + expandedCardHeight;
+                
+                // Only trigger sticky/collapse when scrolled past the ENTIRE input card
+                // This allows users to scroll within the expanded form on mobile
+                if (scrollY > inputCardBottom - 60) {
                     // If expanded, collapse it first
                     if (state.inputExpanded) {
+                        // Calculate height difference before collapsing
+                        const collapsedHeight = getCollapsedHeight();
+                        const heightDiff = expandedCardHeight - collapsedHeight;
+                        
                         state.inputExpanded = false;
                         document.getElementById('inputContent').classList.remove('expanded');
                         document.getElementById('inputChevron').classList.add('rotated');
                         updateInputPreview();
+                        
+                        // On mobile, adjust scroll position to prevent content jump
+                        if (isMobile() && heightDiff > 0) {
+                            window.scrollTo({
+                                top: scrollY - heightDiff,
+                                behavior: 'instant'
+                            });
+                        }
                     }
-                    
+
                     // Make sticky if not already
                     if (!isSticky) {
-                        // Set placeholder height first to prevent content jump
-                        inputPlaceholder.style.height = expandedCardHeight + 'px';
+                        // Use collapsed height for placeholder since card will be collapsed
+                        const collapsedHeight = getCollapsedHeight();
+                        inputPlaceholder.style.height = collapsedHeight + 'px';
                         // Small delay to let height apply before making sticky
                         requestAnimationFrame(() => {
                             inputCard.classList.add('sticky');
                         });
                     }
                 }
-                
-                // When scrolling back to top, unstick
-                if (scrollY < 50 && isSticky) {
+
+                // When scrolling back to top, unstick earlier (when approaching original position)
+                if (scrollY < inputCardOriginalTop + 20 && isSticky) {
                     inputCard.classList.remove('sticky');
-                    // Delay removing placeholder height
-                    requestAnimationFrame(() => {
-                        inputPlaceholder.style.height = '0';
-                    });
+                    // Remove placeholder height immediately
+                    inputPlaceholder.style.height = '0';
                 }
             });
             
